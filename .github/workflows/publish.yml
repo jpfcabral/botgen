@@ -1,17 +1,29 @@
-name: Build and publish python package
+name: Publish to PyPI
 
 on:
   release:
-    types: [ published ]
+    types:
+      - created
 
 jobs:
-  publish-service-client-package:
+  publish:
+    name: Publish package to PyPI
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: Publish PyPi package
-        uses: code-specialist/pypi-poetry-publish@v1
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
         with:
-          ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PUBLISH_REGISTRY_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: |
+          pip install poetry
+          poetry install
+
+      - name: Publish package
+        run: |
+          poetry config pypi-token.pypi ${{ secrets.PYPI_TOKEN }}
+          poetry publish --build
