@@ -1,6 +1,6 @@
 *Python-based open source developer tool for building chat bots, apps and custom integrations for major messaging platforms.*
 
-This repository is inspired by the javascript library [botgen](https://github.com/howdyai/botgen) and the [BotFramework SDK](https://github.com/microsoft/botframework-sdk) concepts.
+This repository is inspired by the javascript library [Botkit](https://github.com/howdyai/botgen) and the [BotFramework SDK](https://github.com/microsoft/botframework-sdk) concepts.
 
 ### Adapters
 
@@ -20,19 +20,19 @@ You can connect major plataforms using the same bot core code by setting differe
 
 Installation
 
-`pip install botgen` (coming soon)
+`pip install botgen`
 
 Copy and paste the code below to a file called `run.py`
 
 ```python
 # run.py
-from botgen import botgen
+from botgen import Bot
 from botgen import BotMessage
 from botgen import BotWorker
 from botgen.adapters import WebAdapter
 
 adapter = WebAdapter()
-bot = botgen(adapter=adapter)
+bot = Bot(adapter=adapter)
 
 async def hello(bot_worker: BotWorker, message: BotMessage):
     await bot_worker.say("hello from bot")
