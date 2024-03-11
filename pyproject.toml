@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "botgen"
+version = "0.0.1"
+description = "Python based developer toolkit to build bots"
+authors = ["Joao Cabral <jpfcabral@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+botbuilder-core = "^4.14.8"
+aiohttp = "^3.9.3"
+botbuilder-dialogs = "^4.14.8"
+loguru = "^0.7.2"
+
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^3.6.0"
+mkdocs = "^1.5.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

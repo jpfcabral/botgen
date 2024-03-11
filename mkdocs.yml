@@ -1,0 +1,5 @@
+site_name: Botgen
+
+nav:
+  - Home: index.md
+  - Introduction: intro.md
