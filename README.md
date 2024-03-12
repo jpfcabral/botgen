@@ -10,8 +10,9 @@ You can connect major plataforms using the same bot core code by setting differe
 | Adapter | Docs | Availability |
 |---------| -----|--------------|
 | Web     | | 0.0.1        |
-| Slack   | |              |
 | Telegram   | |              |
+| Discord    | |              |
+| Slack   | |              |
 | Facebook   | |              |
 | Twilio (SMS)   | |              |
 | Whatsapp   | |              |
