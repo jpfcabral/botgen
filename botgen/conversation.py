@@ -8,6 +8,10 @@ from typing import Union
 
 from botbuilder.dialogs import Dialog
 from botbuilder.dialogs import DialogContext
+from botbuilder.dialogs import DialogReason
+from botbuilder.dialogs import DialogTurnStatus
+from botbuilder.schema import ActivityTypes
+from loguru import logger
 
 import botgen
 from botgen.dialog_wrapper import BotDialogWrapper
@@ -291,3 +295,430 @@ class BotConversation(Dialog):
             bot = await self._controller.spawn(context)
             for handler in self._after_hooks:
                 await handler(results, bot)
+
+    def on_change(self, variable: str, handler: Callable) -> None:
+        """
+        Bind a function to run whenever a user answers a specific question.
+        Can be used to validate input and take conditional actions.
+
+        Args:
+            variable (str): Name of the variable to watch for changes.
+            handler (Callable): A handler function that will fire whenever a user's response is used to change the value of the watched variable.
+        """
+        if variable not in self._change_hooks:
+            self._change_hooks[variable] = []
+        self._change_hooks[variable].append(handler)
+
+    async def _run_on_change(
+        self, variable: str, value: any, dc: DialogContext, step: BotConversationStep
+    ) -> None:
+        """
+        This private method is responsible for firing any bound onChange handlers when a variable changes.
+
+        Args:
+            variable (str): The name of the variable that is changing.
+            value (any): The new value of the variable.
+            dc (DialogContext): The current DialogContext.
+            step (BotConversationStep): The current step object.
+        """
+        logger.debug("OnChange:", self.id, variable)
+
+        if variable in self._change_hooks and self._change_hooks[variable]:
+            bot = await self._controller.spawn(dc)
+
+            convo = BotDialogWrapper(dc, step)
+
+            for handler in self._change_hooks[variable]:
+                await handler(value, convo, bot)
+
+    async def begin_dialog(self, dc: DialogContext, options: any) -> any:
+        """
+        Called automatically when a dialog begins. Do not call this directly!
+
+        Args:
+            dc (DialogContext): The current DialogContext.
+            options (any): An object containing initialization parameters passed to the dialog.
+                           May include `thread` which will cause the dialog to begin with that thread instead of the `default` thread.
+
+        Returns:
+            any: The result of the dialog.
+        """
+        # Initialize the state
+        state = dc.active_dialog.state
+        state.options = options or {}
+        state.values = {**options}
+
+        # Run the first step
+        return await self.run_step(
+            dc, 0, state.options.get("thread", "default"), DialogReason.BeginCalled
+        )
+
+    async def continue_dialog(self, dc: DialogContext) -> any:
+        """
+        Called automatically when an already active dialog is continued. Do not call this directly!
+
+        Args:
+            dc (DialogContext): The current DialogContext.
+
+        Returns:
+            any: The result of continuing the dialog.
+        """
+        # Don't do anything for non-message activities
+        if dc.context.activity.type != ActivityTypes.message:
+            return Dialog.EndOfTurn
+
+        # Run next step with the message text as the result.
+        return await self.resume_dialog(dc, DialogReason.continue_called, dc.context.activity)
+
+    async def on_step(self, dc: DialogContext, step: BotConversationStep) -> Any:
+        """
+        Called automatically to process the turn, interpret the script, and take any necessary actions based on that script. Do not call this directly
+        """
+        # Let's interpret the current line of the script.
+        thread = self.script[step.thread]
+
+        if not thread:
+            raise ValueError(f"Thread '{step.thread}' not found, did you add any messages to it?")
+
+        # Capture the previous step value if there previous line included a prompt
+        previous = thread[step.index - 1] if step.index >= 1 else None
+        if step.result and previous and previous.collect:
+            if previous.collect.key:
+                # capture before values
+                index = step.index
+                thread_name = step.thread
+
+                # capture the user input value into the array
+                if step.values[previous.collect.key] and previous.collect.multiple:
+                    step.values[previous.collect.key] = "\n".join(
+                        [step.values[previous.collect.key], step.result]
+                    )
+                else:
+                    step.values[previous.collect.key] = step.result
+
+                # run onChange handlers
+                await self.run_on_change(previous.collect.key, step.result, dc, step)
+
+                # did we just change threads? if so, restart this turn
+                if index != step.index or thread_name != step.thread:
+                    return await self.run_step(
+                        dc, step.index, step.thread, DialogReason.next_called
+                    )
+
+            # handle conditions of previous step
+            if previous.collect.options:
+                paths = [option for option in previous.collect.options if not option.default]
+                default_path = (
+                    [option for option in previous.collect.options if option.default][0]
+                    if any(option.default for option in previous.collect.options)
+                    else None
+                )
+                path = None
+
+                for condition in paths:
+                    test = (
+                        re.compile(condition.pattern, re.I)
+                        if condition.type in ["string", "regex"]
+                        else None
+                    )
+                    if (
+                        step.result
+                        and isinstance(step.result, str)
+                        and test
+                        and test.match(step.result)
+                    ):
+                        path = condition
+                        break
+
+                # take default path if one is set
+                if not path:
+                    path = default_path
+
+                if path:
+                    if path.action != "wait" and previous.collect and previous.collect.multiple:
+                        pass  # TODO: remove the final line of input
+
+                    res = await self.handle_action(path, dc, step)
+                    if res is not False:
+                        return res
+
+        # was the dialog canceled during the last action?
+        if not dc.active_dialog:
+            return await self.end(dc)
+
+        # Handle the current step
+        if step.index < len(thread):
+            line = thread[step.index]
+
+            # If a prompt is defined in the script, use dc.prompt to call it.
+            # This prompt must be a valid dialog defined somewhere in your code!
+            if line.collect and line.action != "begin_dialog":
+                try:
+                    return await dc.prompt(
+                        self._prompt, await self.make_outgoing(dc, line, step.values)
+                    )
+                except Exception as err:
+                    print(err)
+                    await dc.context.send_activity(f"Failed to start prompt {self._prompt}")
+                    return await step.next()
+            else:
+                # if there is text, attachments, or any channel data fields at all...
+                if (
+                    line.type
+                    or line.text
+                    or line.attachments
+                    or line.attachment
+                    or line.blocks
+                    or (line.channel_data and len(line.channel_data))
+                ):
+                    await dc.context.send_activity(await self.make_outgoing(dc, line, step.values))
+                elif not line.action:
+                    print("Dialog contains invalid message", line)
+
+                if line.action:
+                    res = await self.handle_action(line, dc, step)
+                    if res is not False:
+                        return res
+
+                return await step.next()
+        else:
+            # End of script so just return to parent
+            return await self.end(dc)
+
+    async def run_step(
+        self,
+        dc: DialogContext,
+        index: int,
+        thread_name: str,
+        reason: DialogReason,
+        result: Any = None,
+    ) -> Any:
+        """
+        Runs a dialog step based on the provided parameters.
+
+        Args:
+            dc (DialogContext): The current DialogContext.
+            index (int): The index of the current step.
+            thread_name (str): The name of the current thread.
+            reason (DialogReason): The reason given for running this step.
+            result (Any, optional): The result of the previous turn if any. Defaults to None.
+
+        Returns:
+            Promise[Any]: A promise representing the asynchronous operation.
+        """
+        # Update the step index
+        state = dc.active_dialog.state
+        state.step_index = index
+        state.thread = thread_name
+
+        # Create step context
+        next_called = False
+        step = {
+            "index": index,
+            "thread_length": len(self.script[thread_name]),
+            "thread": thread_name,
+            "state": state,
+            "options": state.options,
+            "reason": reason,
+            "result": result.text if result and result.text else result,
+            "result_object": result,
+            "values": state.values,
+            "next": lambda step_result: self.resume_dialog(
+                dc, DialogReason.next_called, step_result
+            )
+            if not next_called
+            else None,
+        }
+
+        # did we just start a new thread?
+        # if so, run the before stuff.
+        if index == 0:
+            await self.run_before(step.thread, dc, step)
+
+            # did we just change threads? if so, restart
+            if index != step.index or thread_name != step.thread:
+                return await self.run_step(
+                    dc, step.index, step.thread, DialogReason.next_called
+                )  # , step.values);
+
+        # Execute step
+        res = await self.on_step(dc, step)
+
+        return res
+
+    async def end(self, dc: DialogContext) -> DialogTurnStatus:
+        """
+        Ends the dialog and triggers any handlers bound using `after()`.
+
+        Args:
+            dc (DialogContext): The current DialogContext.
+
+        Returns:
+            DialogTurnStatus: The status of the dialog turn.
+        """
+        # TODO: may have to move these around
+        # shallow copy todo: may need deep copy
+        # protect against canceled dialog.
+        if dc.active_dialog and dc.active_dialog.state:
+            result = {**dc.active_dialog.state.values}
+            await dc.end_dialog(result)
+            await self.run_after(dc, result)
+        else:
+            await dc.end_dialog()
+
+        return DialogTurnStatus.Complete
+
+    async def make_outgoing(self, dc: DialogContext, line: dict, vars: dict) -> dict:
+        """
+        Translates a line from the dialog script into an Activity. Responsible for doing token replacement.
+
+        Args:
+            dc (DialogContext): The current DialogContext.
+            line (dict): A message template from the script.
+            vars (dict): An object containing key/value pairs used to do token replacement on fields in the message template.
+
+        Returns:
+            dict: An Activity representing the outgoing message.
+        """
+
+    def parse_templates_recursive(self, attachments: any, vars: any) -> any:
+        """
+        Responsible for doing token replacements recursively in attachments and other multi-field properties of the message.
+
+        Args:
+            attachments (any): Some object or array containing values for which token replacements should be made.
+            vars (any): An object defining key/value pairs used for the token replacements.
+
+        Returns:
+            any: The updated attachments with token replacements.
+        """
+        if attachments and isinstance(attachments, list):
+            for a in range(len(attachments)):
+                for key in attachments[a]:
+                    if isinstance(attachments[a][key], str):
+                        attachments[a][key] = attachments[a][key].format(**vars)
+                    else:
+                        attachments[a][key] = self.parse_templates_recursive(
+                            attachments[a][key], vars
+                        )
+        elif isinstance(attachments, dict):
+            for key in attachments:
+                if isinstance(attachments[key], str):
+                    attachments[key] = attachments[key].format(**vars)
+                else:
+                    attachments[key] = self.parse_templates_recursive(attachments[key], vars)
+
+        return attachments
+
+    async def goto_thread_action(
+        self, thread: str, dc: DialogContext, step: BotConversationStep
+    ) -> Any:
+        """
+        Handle the scripted "gotothread" action - requires an additional call to runStep.
+
+        Args:
+            thread (str): The name of the thread to jump to.
+            dc (DialogContext): The current DialogContext.
+            step (BotConversationStep): The current step object.
+
+        Returns:
+            Any: The result of running the step.
+        """
+        step.thread = thread
+        step.index = 0
+
+        return await self.run_step(
+            dc, step.index, step.thread, DialogReason.nextCalled, step.values
+        )
+
+    async def handle_action(self, path: dict, dc: DialogContext, step: BotConversationStep) -> Any:
+        """
+        Accepts a Botkit script action, and performs that action.
+
+        Args:
+            path (dict): A conditional path.
+            dc (DialogContext): The current DialogContext.
+            step (BotConversationStep): The current step object.
+
+        Returns:
+            Any: The result of performing the action.
+        """
+        worker = None
+
+        if "handler" in path:
+            index = step.index
+            thread_name = step.thread
+            result = step.result
+            response = result["text"] if result else None
+
+            # spawn a bot instance so devs can use API or other stuff as necessary
+            bot = await self._controller.spawn(dc)
+
+            # create a convo controller object
+            convo = BotDialogWrapper(dc, step)
+
+            activedialog = dc.active_dialog.id
+
+            await path["handler"](
+                response,
+                convo,
+                bot,
+                dc.context.turn_state.get("botkitMessage") or dc.context.activity,
+            )
+
+            if not dc.active_dialog:
+                return False
+
+            # did we change dialogs? if so, return an endofturn because the new dialog has taken over.
+            if activedialog != dc.active_dialog.id:
+                return Dialog.end_of_turn
+
+            # did we just change threads? if so, restart this turn
+            if index != step.index or thread_name != step.thread:
+                return await self.run_step(
+                    dc, step.index, step.thread, DialogReason.next_called, None
+                )
+
+            return False
+
+        action = path.get("action")
+
+        if action == "next":
+            pass  # noop
+        elif action == "complete":
+            step.values["_status"] = "completed"
+            return await self.end(dc)
+        elif action == "stop":
+            step.values["_status"] = "canceled"
+            return await self.end(dc)
+        elif action == "timeout":
+            step.values["_status"] = "timeout"
+            return await self.end(dc)
+        elif action == "execute_script":
+            worker = await self._controller.spawn(dc)
+
+            await worker.replace_dialog(
+                path["execute"]["script"], {"thread": path["execute"]["thread"], **step.values}
+            )
+
+            return DialogTurnStatus(DialogTurnStatus.Waiting)
+        elif action == "beginDialog":
+            worker = await self._controller.spawn(dc)
+
+            await worker.begin_dialog(
+                path["execute"]["script"], {"thread": path["execute"]["thread"], **step.values}
+            )
+            return DialogTurnStatus(DialogTurnStatus.waiting)
+        elif action == "repeat":
+            return await self.run_step(dc, step.index - 1, step.thread, DialogReason.NextCalled)
+        elif action == "wait":
+            # reset the state so we're still on this step.
+            step.state["stepIndex"] = step.index - 1
+            # send a waiting status
+            return DialogTurnStatus(DialogTurnStatus.Waiting)
+        else:
+            # the default behavior for unknown action in botkit is to gotothread
+            if path["action"] in self.script:
+                return await self.goto_thread_action(path["action"], dc, step)
+            print("NOT SURE WHAT TO DO WITH THIS!!", path)
+            return False
