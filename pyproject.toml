@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "botgen"
-version = "0.0.1"
+version = "0.0.2"
 description = "Python based developer toolkit to build bots"
 authors = ["Joao Cabral <jpfcabral@gmail.com>"]
 readme = "README.md"
