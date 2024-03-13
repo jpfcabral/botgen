@@ -2,6 +2,7 @@ from abc import ABC
 from dataclasses import dataclass
 from typing import Callable
 from typing import Optional
+from typing import Union
 
 from aiohttp import web
 from botbuilder.core import BotAdapter
@@ -11,11 +12,10 @@ from botbuilder.core import TurnContext
 from botbuilder.dialogs import Dialog
 from botbuilder.dialogs import DialogContext
 from botbuilder.dialogs import DialogSet
-from botbuilder.dialogs import DialogTurnStatus
 from botbuilder.dialogs import WaterfallDialog
+from botbuilder.dialogs import WaterfallStepContext
 from botbuilder.schema import Activity
 from botbuilder.schema import ConversationReference
-from loguru import logger
 
 from botgen.bot_worker import BotWorker
 from botgen.conversation_state import BotConversationState
@@ -242,3 +242,55 @@ class Bot:
 
     def start(self):
         web.run_app(self.webserver)
+
+    def add_dialog(self, dialog: Dialog) -> None:
+        """
+        Add a dialog to the bot, making it accessible via `bot.begin_dialog(dialog_id)`.
+
+        Args:
+            dialog_id (str): The ID of the dialog.
+            dialog (Dialog): A dialog to be added to the bot's dialog set.
+        """
+        # Add the actual dialog
+        self.dialog_set.add(dialog)
+
+        waterfall_dialog = WaterfallDialog(dialog_id=f"{dialog.id}:botgen-wrapper", steps=...)
+
+        self.dialog_set.add(waterfall_dialog)
+
+    async def _begin_dialog(self, step: WaterfallStepContext, dialog: Dialog):
+        """ """
+        return await step.begin_dialog(dialog_id=dialog.id, options=step.options)
+
+    async def _end_dialog(self, step: WaterfallStepContext, dialog: Dialog):
+        """ """
+        bot_worker = await self.spawn(step.context)
+        await self.trigger(event=f"{dialog.id}:after", bot_worker=bot_worker, message=step.result)
+        return step.end_dialog(result=step.result)
+
+    def after_dialog(self, dialog: Union[Dialog, str], handler: Callable) -> None:
+        """
+        Bind a handler to the end of a dialog.
+
+        Args:
+            dialog (Union[Dialog, str]): The dialog object or the ID of the dialog.
+            handler (Callable): A handler function.
+
+        Returns:
+            None
+        """
+        id = dialog if isinstance(dialog, str) else dialog.id
+        self.on(f"{id}:after", handler)
+
+    async def save_state(self, bot_worker: BotWorker) -> None:
+        """
+        Save the current conversation state pertaining to a given BotWorker's activities.
+        Note: this is normally called internally and is only required when state changes happen outside of the normal processing flow.
+
+        Args:
+            bot (BotWorker): A BotWorker instance created using `controller.spawn()`.
+
+        Returns:
+            None
+        """
+        await self._conversation_state.save_changes(bot_worker.get_config("context"))
