@@ -2,11 +2,11 @@ from typing import Any
 
 from botbuilder.dialogs import DialogContext
 
-from botgen.conversation import BotConversationStep
+import botgen
 
 
 class BotDialogWrapper:
-    def __init__(self, dc: DialogContext, step: BotConversationStep):
+    def __init__(self, dc: DialogContext, step: botgen.BotConversationStep):
         self.dc = dc
         self.step = step
         self.vars = self.step.values

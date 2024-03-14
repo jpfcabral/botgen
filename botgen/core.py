@@ -17,8 +17,7 @@ from botbuilder.dialogs import WaterfallStepContext
 from botbuilder.schema import Activity
 from botbuilder.schema import ConversationReference
 
-from botgen.bot_worker import BotWorker
-from botgen.conversation_state import BotConversationState
+import botgen
 
 
 @dataclass
@@ -102,7 +101,7 @@ class Bot:
 
         self._storage = MemoryStorage()
 
-        self._conversation_state = BotConversationState(storage=self._storage)
+        self._conversation_state = botgen.BotConvoState(storage=self._storage)
 
         dialog_state = self._conversation_state.create_property(self.dialog_state_property)
 
@@ -144,7 +143,7 @@ class Bot:
 
         await self._process_trigger_and_events(bot_worker=bot_worker, message=message)
 
-    async def _process_trigger_and_events(self, bot_worker: BotWorker, message: BotMessage):
+    async def _process_trigger_and_events(self, bot_worker: botgen.BotWorker, message: BotMessage):
         """ """
         listen_results = await self._listen_for_triggers(bot_worker=bot_worker, message=message)
 
@@ -155,7 +154,7 @@ class Bot:
 
         return trigger_results
 
-    async def trigger(self, event: str, bot_worker: BotWorker, message: BotMessage):
+    async def trigger(self, event: str, bot_worker: botgen.BotWorker, message: BotMessage):
         """ """
         if event in self._events:
             for ev in self._events[event]:
@@ -164,7 +163,7 @@ class Bot:
                 if handler_result:
                     break
 
-    async def _listen_for_triggers(self, bot_worker: BotWorker, message: BotMessage):
+    async def _listen_for_triggers(self, bot_worker: botgen.BotWorker, message: BotMessage):
         """ """
         if message.type in self._triggers:
             triggers: list[Callable] = self._triggers[message.type]
@@ -226,7 +225,7 @@ class Bot:
 
     async def spawn(
         self, config: TurnContext | DialogContext = None, custom_adapter: BotAdapter = None
-    ) -> BotWorker:
+    ) -> botgen.BotWorker:
         """ """
         _config = dict()
 
@@ -238,7 +237,7 @@ class Bot:
                 "activity": config.context.activity,
             }
 
-            return BotWorker(self, config=_config)
+            return botgen.BotWorker(self, config=_config)
 
     def start(self):
         web.run_app(self.webserver)
@@ -282,13 +281,13 @@ class Bot:
         id = dialog if isinstance(dialog, str) else dialog.id
         self.on(f"{id}:after", handler)
 
-    async def save_state(self, bot_worker: BotWorker) -> None:
+    async def save_state(self, bot_worker: botgen.BotWorker) -> None:
         """
-        Save the current conversation state pertaining to a given BotWorker's activities.
+        Save the current conversation state pertaining to a given botgen.BotWorker's activities.
         Note: this is normally called internally and is only required when state changes happen outside of the normal processing flow.
 
         Args:
-            bot (BotWorker): A BotWorker instance created using `controller.spawn()`.
+            bot (botgen.BotWorker): A botgen.BotWorker instance created using `controller.spawn()`.
 
         Returns:
             None

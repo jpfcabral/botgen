@@ -15,7 +15,6 @@ from botbuilder.schema import ActivityTypes
 from loguru import logger
 
 import botgen
-from botgen.dialog_wrapper import BotDialogWrapper
 
 
 @dataclass
@@ -35,7 +34,7 @@ class BotConversationStep:
 class BotConvoTrigger:
     type: str = None
     pattern: str = None
-    handler: Callable[[Any, Any], Any]
+    handler: Callable[[Any, Any], Any] = None
     default: bool = False
 
 
@@ -236,7 +235,7 @@ class BotConversation(Dialog):
     def before(
         self,
         thread_name: str,
-        handler: Callable[[BotDialogWrapper, botgen.BotWorker], Awaitable[Any]],
+        handler: Callable[[botgen.BotDialogWrapper, botgen.BotWorker], Awaitable[Any]],
     ) -> None:
         """
         Register a handler function that will fire before a given thread begins.
@@ -270,7 +269,7 @@ class BotConversation(Dialog):
             bot = await self._controller.spawn(dc)
 
             # create a convo controller object
-            convo = BotDialogWrapper(dc, step)
+            convo = botgen.BotDialogWrapper(dc, step)
 
             for handler in self._before_hooks[thread_name]:
                 await handler(self, convo, bot)
@@ -327,7 +326,7 @@ class BotConversation(Dialog):
         if variable in self._change_hooks and self._change_hooks[variable]:
             bot = await self._controller.spawn(dc)
 
-            convo = BotDialogWrapper(dc, step)
+            convo = botgen.BotDialogWrapper(dc, step)
 
             for handler in self._change_hooks[variable]:
                 await handler(value, convo, bot)
@@ -656,7 +655,7 @@ class BotConversation(Dialog):
             bot = await self._controller.spawn(dc)
 
             # create a convo controller object
-            convo = BotDialogWrapper(dc, step)
+            convo = botgen.BotDialogWrapper(dc, step)
 
             activedialog = dc.active_dialog.id
 

@@ -7,23 +7,21 @@ from aiohttp.web import Request
 from botbuilder.core import BotAdapter
 from botbuilder.core import TurnContext
 from botbuilder.schema import Activity
-from botbuilder.schema import ActivityTypes
 from botbuilder.schema import ConversationReference
 from botbuilder.schema import ResourceResponse
-from loguru import logger
 
-from botgen.core import BotMessage
+import botgen
 
 
 class WebAdapter(BotAdapter):
-    """ Connects PyBot to websocket or webhook """
+    """Connects PyBot to websocket or webhook"""
 
     def __init__(self, on_turn_error: Callable[[TurnContext, Exception], Awaitable] = None):
         super().__init__(on_turn_error)
 
-    def activity_to_message(self, activity: Activity) -> BotMessage:
-        """ Caste a message to the simple format used by the websocket client """
-        message = BotMessage(
+    def activity_to_message(self, activity: Activity) -> botgen.BotMessage:
+        """Caste a message to the simple format used by the websocket client"""
+        message = botgen.BotMessage(
             type=activity.type,
             text=activity.text,
         )
@@ -36,7 +34,7 @@ class WebAdapter(BotAdapter):
     async def send_activities(
         self, context: TurnContext, activities: list[Activity]
     ) -> ResourceResponse:
-        """ Standard BotBuilder adapter method to send a message from the bot to the messaging API """
+        """Standard BotBuilder adapter method to send a message from the bot to the messaging API"""
 
         responses = list()
 
@@ -63,12 +61,12 @@ class WebAdapter(BotAdapter):
         raise NotImplementedError()
 
     async def delete_activity(self, context: TurnContext, reference: ConversationReference) -> None:
-        """ Accept an incoming webhook request and convert it into a TurnContext which can be processed by the bot's logic """
+        """Accept an incoming webhook request and convert it into a TurnContext which can be processed by the bot's logic"""
         raise NotImplementedError()
 
     async def process_activity(self, request: Request, logic: callable):
         body = await request.json()
-        message = BotMessage(**body)
+        message = botgen.BotMessage(**body)
 
         activity = Activity(
             timestamp=datetime.now(),
