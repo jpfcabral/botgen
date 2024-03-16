@@ -1,4 +1,6 @@
+import random
 import re
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 from typing import Callable
@@ -6,11 +8,15 @@ from typing import Dict
 from typing import List
 from typing import Union
 
+from botbuilder.core import MessageFactory
 from botbuilder.dialogs import Dialog
 from botbuilder.dialogs import DialogContext
 from botbuilder.dialogs import DialogReason
 from botbuilder.dialogs import DialogTurnStatus
+from botbuilder.schema import ActionTypes
+from botbuilder.schema import Activity
 from botbuilder.schema import ActivityTypes
+from botbuilder.schema import CardAction
 from loguru import logger
 
 import botgen
@@ -40,6 +46,7 @@ class BotConvoTrigger:
 @dataclass
 class BotMessageTemplate:
     text: Union[Callable[[Any, Any], str], List[str]] = None
+    channel_data: dict = None
     type: str = None
     action: str = None
     execute: dict = None
@@ -47,7 +54,7 @@ class BotMessageTemplate:
     attachments: Union[Callable[[Any, Any], List[Any]], List[Any]] = None
     blocks: Union[Callable[[Any, Any], List[Any]], List[Any]] = None
     attachment: Union[Callable[[Any, Any], Any], Any] = None
-    attachmentLayout: str = None
+    attachment_layout: str = None
     channelData: Any = None
     collect: Dict[str, BotConvoTrigger] = None
 
@@ -572,18 +579,111 @@ class BotConversation(Dialog):
 
         return DialogTurnStatus.Complete
 
-    async def make_outgoing(self, dc: DialogContext, line: dict, vars: dict) -> dict:
+    async def make_outgoing(self, dc: DialogContext, line: BotMessageTemplate, vars: dict) -> dict:
         """
-        Translates a line from the dialog script into an Activity. Responsible for doing token replacement.
+        Translates a line from the dialog script into an Activity.
+        Responsible for doing token replacement.
 
         Args:
-            dc (DialogContext): The current DialogContext.
-            line (dict): A message template from the script.
-            vars (dict): An object containing key/value pairs used to do token replacement on fields in the message template.
+            dc (Any): Dialog context.
+            line (Dict[str, Any]): A message template from the script.
+            vars (Dict[str, Any]): An object containing key/value pairs used to do token replacement
+                                    on fields in the message template.
 
         Returns:
-            dict: An Activity representing the outgoing message.
+            Any: Processed output based on the provided line.
         """
+        outgoing = None
+        text = ""
+
+        # If the text is just a string, use it.
+        # Otherwise, if it is an array, pick a random element.
+        if line.text and isinstance(line.text, str):
+            text = line.text
+        # If text is a function, call the function to get the actual text value.
+        elif line.text and isinstance(line.text, Callable):
+            text = await line.text(line, vars)
+        elif isinstance(line.text, list):
+            text = random.choice(line.text)
+
+        # Use Bot Framework's message factory to construct the initial object.
+        if line.quick_replies and not isinstance(line.quick_replies, callable):
+            outgoing: Activity = MessageFactory.suggested_actions(
+                [
+                    CardAction(
+                        type=ActionTypes.post_back,
+                        title=reply["title"],
+                        text=reply["payload"],
+                        display_text=reply["title"],
+                        value=reply["payload"],
+                    )
+                    for reply in line.quick_replies
+                ],
+                text,
+            )
+        else:
+            outgoing: Activity = MessageFactory.text(text)
+
+        outgoing.channel_data = outgoing.channel_data if outgoing.channel_data else {}
+
+        if line.attachment_layout:
+            outgoing.attachment_layout = line.attachment_layout
+
+        if callable(line.quick_replies):
+            quick_replies = await line.quick_replies(line, vars)
+            outgoing.channel_data["quick_replies"] = quick_replies
+            outgoing.suggested_actions = {
+                "actions": [
+                    {
+                        "type": ActionTypes.PostBack,
+                        "title": reply["title"],
+                        "text": reply["payload"],
+                        "display_text": reply["title"],
+                        "value": reply["payload"],
+                    }
+                    for reply in quick_replies
+                ]
+            }
+
+        if callable(line.attachment):
+            outgoing.channel_data["attachment"] = await line.attachment(line, vars)
+
+        if callable(line.attachments):
+            attachments = await line.attachments(line, vars)
+            outgoing.attachments = outgoing.channel_data["attachments"] = attachments
+
+        if callable(line.blocks):
+            outgoing.channel_data["blocks"] = await line.blocks(line, vars)
+
+        # Quick replies are used by Facebook and Web adapters, but in a different way than they are for Bot Framework.
+        # In order to make this as easy as possible, copy these fields for the developer into channelData.
+        if line.quick_replies and not callable(line.quick_replies):
+            outgoing.channel_data["quick_replies"] = deepcopy(line.quick_replies)
+
+        # Similarly, attachment and blocks fields are platform specific.
+        # Handle Slack Block attachments.
+        if line.blocks and not callable(line.blocks):
+            outgoing.channel_data["blocks"] = deepcopy(line.blocks)
+
+        # Handle Facebook attachments.
+        if line.attachment and not callable(line.attachment):
+            outgoing.channel_data["attachment"] = deepcopy(line.attachment)
+
+        # Set the type.
+        if line.type:
+            outgoing.type = deepcopy(line.type)
+
+        # Copy all the values in channelData fields.
+        if line.channel_data and len(line.channel_data) > 0:
+            channel_data_parsed = self.parse_templates_recursive(deepcopy(line.channel_data), vars)
+
+            # Merge channelData fields.
+            outgoing.channel_data.update(channel_data_parsed)
+
+        # bot_worker = self._controller.spawn(dc)
+        # self._controller.middleware.send(bot_worker, outgoing, )
+
+        return outgoing
 
     def parse_templates_recursive(self, attachments: any, vars: any) -> any:
         """
