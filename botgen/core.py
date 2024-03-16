@@ -253,21 +253,23 @@ class Bot:
         # Add the actual dialog
         self.dialog_set.add(dialog)
 
+        async def _begin_dialog(step: WaterfallStepContext):
+            """ """
+            return await step.begin_dialog(dialog_id=dialog.id, options=step.options)
+
+        async def _end_dialog(step: WaterfallStepContext):
+            """ """
+            bot_worker = await self.spawn(step.context)
+            await self.trigger(
+                event=f"{dialog.id}:after", bot_worker=bot_worker, message=step.result
+            )
+            return step.end_dialog(result=step.result)
+
         waterfall_dialog = WaterfallDialog(
-            dialog_id=f"{dialog.id}:botgen-wrapper", steps=[self._begin_dialog, self._end_dialog]
+            dialog_id=f"{dialog.id}:botgen-wrapper", steps=[_begin_dialog, _end_dialog]
         )
 
         self.dialog_set.add(waterfall_dialog)
-
-    async def _begin_dialog(self, step: WaterfallStepContext, dialog: Dialog):
-        """ """
-        return await step.begin_dialog(dialog_id=dialog.id, options=step.options)
-
-    async def _end_dialog(self, step: WaterfallStepContext, dialog: Dialog):
-        """ """
-        bot_worker = await self.spawn(step.context)
-        await self.trigger(event=f"{dialog.id}:after", bot_worker=bot_worker, message=step.result)
-        return step.end_dialog(result=step.result)
 
     def after_dialog(self, dialog: Union[Dialog, str], handler: Callable) -> None:
         """
