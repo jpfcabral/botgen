@@ -20,8 +20,11 @@ class BotWorker:
         """Get a reference to the main Bot controller"""
         return self._controller
 
-    def get_config(self):
+    def get_config(self, key: str):
         """Get a value from the BotWorker's configuration"""
+        if key:
+            return self._config[key]
+
         return self._config
 
     async def say(self, message: botgen.BotMessage | Activity | str):
@@ -81,4 +84,4 @@ class BotWorker:
             },
         )
 
-        self._controller.save_state(self)
+        await self._controller.save_state(self)
