@@ -263,7 +263,7 @@ class Bot:
             await self.trigger(
                 event=f"{dialog.id}:after", bot_worker=bot_worker, message=step.result
             )
-            return step.end_dialog(result=step.result)
+            return await step.end_dialog(result=step.result)
 
         waterfall_dialog = WaterfallDialog(
             dialog_id=f"{dialog.id}:botgen-wrapper", steps=[_begin_dialog, _end_dialog]

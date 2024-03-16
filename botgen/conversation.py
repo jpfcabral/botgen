@@ -491,7 +491,7 @@ class BotConversation(Dialog):
                     if res is not False:
                         return res
 
-                return await step["next"]()
+                return await step["next"](None)
         else:
             # End of script so just return to parent
             return await self.end(dc)
@@ -534,9 +534,7 @@ class BotConversation(Dialog):
             "result": result.text if result and result.text else result,
             "result_object": result,
             "values": state["values"],
-            "next": lambda step_result: self.resume_dialog(
-                dc, DialogReason.next_called, step_result
-            )
+            "next": lambda step_result: self.resume_dialog(dc, DialogReason.NextCalled, step_result)
             if not next_called
             else None,
         }
