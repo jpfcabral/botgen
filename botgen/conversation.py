@@ -1,7 +1,6 @@
 import re
 from dataclasses import dataclass
 from typing import Any
-from typing import Awaitable
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -58,7 +57,7 @@ class BotConversation(Dialog):
     defining and interacting with multi-message dialogs. Dialogs can be constructed using `say()`, `ask()` and other helper methods.
     """
 
-    def __init__(self, dialog_id: str, controller: botgen.Bot):
+    def __init__(self, dialog_id: str, controller):
         super().__init__(dialog_id=dialog_id)
 
         self._prompt: str
@@ -66,7 +65,7 @@ class BotConversation(Dialog):
         self._afterHooks: List = []
         self._changeHooks: Dict = {}
         self.script: Dict[List] = {}
-        self._controller: botgen.Bot = controller
+        self._controller = controller
 
     def add_message(self, message: BotMessageTemplate | str, thread_name: str = None):
         """
@@ -235,7 +234,7 @@ class BotConversation(Dialog):
     def before(
         self,
         thread_name: str,
-        handler: Callable[[botgen.BotDialogWrapper, botgen.BotWorker], Awaitable[Any]],
+        handler: Callable,
     ) -> None:
         """
         Register a handler function that will fire before a given thread begins.
