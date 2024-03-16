@@ -253,7 +253,9 @@ class Bot:
         # Add the actual dialog
         self.dialog_set.add(dialog)
 
-        waterfall_dialog = WaterfallDialog(dialog_id=f"{dialog.id}:botgen-wrapper", steps=...)
+        waterfall_dialog = WaterfallDialog(
+            dialog_id=f"{dialog.id}:botgen-wrapper", steps=[self._begin_dialog, self._end_dialog]
+        )
 
         self.dialog_set.add(waterfall_dialog)
 

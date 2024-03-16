@@ -54,7 +54,7 @@ class BotWorker:
 
         return Activity(**message.__dict__)
 
-    async def begin_dialog(self, id: str, options: dict = None) -> None:
+    async def begin_dialog(self, id: str, options: dict = {}) -> None:
         """
         Begin a pre-defined dialog by specifying its ID. The dialog will be started in the same context
         (same user, same channel) in which the original incoming message was received.
@@ -76,7 +76,8 @@ class BotWorker:
             f"{id}:botgen-wrapper",
             {
                 "user": self._config["context"].activity.id,
-                "channel": self._config["context"].activity.conversation.id ** options,
+                "channel": self._config["context"].activity.conversation["id"],
+                **options,
             },
         )
 
