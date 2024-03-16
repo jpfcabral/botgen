@@ -61,7 +61,7 @@ class BotConversation(Dialog):
         super().__init__(dialog_id=dialog_id)
 
         self._prompt: str
-        self._beforeHooks: Dict = {}
+        self._before_hooks: Dict = {}
         self._afterHooks: List = []
         self._changeHooks: Dict = {}
         self.script: Dict[List] = {}
@@ -344,12 +344,12 @@ class BotConversation(Dialog):
         """
         # Initialize the state
         state = dc.active_dialog.state
-        state.options = options or {}
-        state.values = {**options}
+        state["options"] = options or {}
+        state["values"] = {**options}
 
         # Run the first step
         return await self.run_step(
-            dc, 0, state.options.get("thread", "default"), DialogReason.BeginCalled
+            dc, 0, state["options"].get("thread", "default"), DialogReason.BeginCalled
         )
 
     async def continue_dialog(self, dc: DialogContext) -> any:
@@ -374,34 +374,36 @@ class BotConversation(Dialog):
         Called automatically to process the turn, interpret the script, and take any necessary actions based on that script. Do not call this directly
         """
         # Let's interpret the current line of the script.
-        thread = self.script[step.thread]
+        thread = self.script[step["thread"]]
 
         if not thread:
-            raise ValueError(f"Thread '{step.thread}' not found, did you add any messages to it?")
+            raise ValueError(
+                f"Thread '{step['thread']}' not found, did you add any messages to it?"
+            )
 
         # Capture the previous step value if there previous line included a prompt
-        previous = thread[step.index - 1] if step.index >= 1 else None
-        if step.result and previous and previous.collect:
+        previous = thread[step["index"] - 1] if step["index"] >= 1 else None
+        if step["result"] and previous and previous.collect:
             if previous.collect.key:
                 # capture before values
-                index = step.index
-                thread_name = step.thread
+                index = step["index"]
+                thread_name = step["thread"]
 
                 # capture the user input value into the array
-                if step.values[previous.collect.key] and previous.collect.multiple:
-                    step.values[previous.collect.key] = "\n".join(
-                        [step.values[previous.collect.key], step.result]
+                if step["values"][previous.collect.key] and previous.collect.multiple:
+                    step["values"][previous.collect.key] = "\n".join(
+                        [step["values"][previous.collect.key], step["result"]]
                     )
                 else:
-                    step.values[previous.collect.key] = step.result
+                    step["values"][previous.collect.key] = step["result"]
 
                 # run onChange handlers
-                await self.run_on_change(previous.collect.key, step.result, dc, step)
+                await self.run_on_change(previous.collect.key, step["result"], dc, step)
 
                 # did we just change threads? if so, restart this turn
-                if index != step.index or thread_name != step.thread:
+                if index != step["index"] or thread_name != step["thread"]:
                     return await self.run_step(
-                        dc, step.index, step.thread, DialogReason.next_called
+                        dc, step["index"], step["thread"], DialogReason.next_called
                     )
 
             # handle conditions of previous step
@@ -421,10 +423,10 @@ class BotConversation(Dialog):
                         else None
                     )
                     if (
-                        step.result
-                        and isinstance(step.result, str)
+                        step["result"]
+                        and isinstance(step["result"], str)
                         and test
-                        and test.match(step.result)
+                        and test.match(step["result"])
                     ):
                         path = condition
                         break
@@ -446,20 +448,20 @@ class BotConversation(Dialog):
             return await self.end(dc)
 
         # Handle the current step
-        if step.index < len(thread):
-            line = thread[step.index]
+        if step["index"] < len(thread):
+            line = thread[step["index"]]
 
             # If a prompt is defined in the script, use dc.prompt to call it.
             # This prompt must be a valid dialog defined somewhere in your code!
             if line.collect and line.action != "begin_dialog":
                 try:
                     return await dc.prompt(
-                        self._prompt, await self.make_outgoing(dc, line, step.values)
+                        self._prompt, await self.make_outgoing(dc, line, step["values"])
                     )
                 except Exception as err:
                     print(err)
                     await dc.context.send_activity(f"Failed to start prompt {self._prompt}")
-                    return await step.next()
+                    return await step["next"]()
             else:
                 # if there is text, attachments, or any channel data fields at all...
                 if (
@@ -470,7 +472,9 @@ class BotConversation(Dialog):
                     or line.blocks
                     or (line.channel_data and len(line.channel_data))
                 ):
-                    await dc.context.send_activity(await self.make_outgoing(dc, line, step.values))
+                    await dc.context.send_activity(
+                        await self.make_outgoing(dc, line, step["values"])
+                    )
                 elif not line.action:
                     print("Dialog contains invalid message", line)
 
@@ -479,7 +483,7 @@ class BotConversation(Dialog):
                     if res is not False:
                         return res
 
-                return await step.next()
+                return await step["next"]()
         else:
             # End of script so just return to parent
             return await self.end(dc)
@@ -507,8 +511,8 @@ class BotConversation(Dialog):
         """
         # Update the step index
         state = dc.active_dialog.state
-        state.step_index = index
-        state.thread = thread_name
+        state["step_index"] = index
+        state["thread"] = thread_name
 
         # Create step context
         next_called = False
@@ -517,11 +521,11 @@ class BotConversation(Dialog):
             "thread_length": len(self.script[thread_name]),
             "thread": thread_name,
             "state": state,
-            "options": state.options,
+            "options": state["options"],
             "reason": reason,
             "result": result.text if result and result.text else result,
             "result_object": result,
-            "values": state.values,
+            "values": state["values"],
             "next": lambda step_result: self.resume_dialog(
                 dc, DialogReason.next_called, step_result
             )
@@ -532,13 +536,13 @@ class BotConversation(Dialog):
         # did we just start a new thread?
         # if so, run the before stuff.
         if index == 0:
-            await self.run_before(step.thread, dc, step)
+            await self.run_before(step["thread"], dc, step)
 
             # did we just change threads? if so, restart
-            if index != step.index or thread_name != step.thread:
+            if index != step["index"] or thread_name != step["thread"]:
                 return await self.run_step(
-                    dc, step.index, step.thread, DialogReason.next_called
-                )  # , step.values);
+                    dc, step["index"], step["thread"], DialogReason.NextCalled
+                )  # , step["values"]);
 
         # Execute step
         res = await self.on_step(dc, step)
@@ -623,11 +627,11 @@ class BotConversation(Dialog):
         Returns:
             Any: The result of running the step.
         """
-        step.thread = thread
-        step.index = 0
+        step["thread"] = thread
+        step["index"] = 0
 
         return await self.run_step(
-            dc, step.index, step.thread, DialogReason.nextCalled, step.values
+            dc, step["index"], step["thread"], DialogReason.nextCalled, step["values"]
         )
 
     async def handle_action(self, path: dict, dc: DialogContext, step: BotConversationStep) -> Any:
@@ -645,9 +649,9 @@ class BotConversation(Dialog):
         worker = None
 
         if "handler" in path:
-            index = step.index
-            thread_name = step.thread
-            result = step.result
+            index = step["index"]
+            thread_name = step["thread"]
+            result = step["result"]
             response = result["text"] if result else None
 
             # spawn a bot instance so devs can use API or other stuff as necessary
@@ -673,9 +677,9 @@ class BotConversation(Dialog):
                 return Dialog.end_of_turn
 
             # did we just change threads? if so, restart this turn
-            if index != step.index or thread_name != step.thread:
+            if index != step["index"] or thread_name != step["thread"]:
                 return await self.run_step(
-                    dc, step.index, step.thread, DialogReason.next_called, None
+                    dc, step["index"], step["thread"], DialogReason.next_called, None
                 )
 
             return False
@@ -685,19 +689,19 @@ class BotConversation(Dialog):
         if action == "next":
             pass  # noop
         elif action == "complete":
-            step.values["_status"] = "completed"
+            step["values"]["_status"] = "completed"
             return await self.end(dc)
         elif action == "stop":
-            step.values["_status"] = "canceled"
+            step["values"]["_status"] = "canceled"
             return await self.end(dc)
         elif action == "timeout":
-            step.values["_status"] = "timeout"
+            step["values"]["_status"] = "timeout"
             return await self.end(dc)
         elif action == "execute_script":
             worker = await self._controller.spawn(dc)
 
             await worker.replace_dialog(
-                path["execute"]["script"], {"thread": path["execute"]["thread"], **step.values}
+                path["execute"]["script"], {"thread": path["execute"]["thread"], **step["values"]}
             )
 
             return DialogTurnStatus(DialogTurnStatus.Waiting)
@@ -705,14 +709,16 @@ class BotConversation(Dialog):
             worker = await self._controller.spawn(dc)
 
             await worker.begin_dialog(
-                path["execute"]["script"], {"thread": path["execute"]["thread"], **step.values}
+                path["execute"]["script"], {"thread": path["execute"]["thread"], **step["values"]}
             )
             return DialogTurnStatus(DialogTurnStatus.waiting)
         elif action == "repeat":
-            return await self.run_step(dc, step.index - 1, step.thread, DialogReason.NextCalled)
+            return await self.run_step(
+                dc, step["index"] - 1, step["thread"], DialogReason.NextCalled
+            )
         elif action == "wait":
             # reset the state so we're still on this step.
-            step.state["stepIndex"] = step.index - 1
+            step.state["stepIndex"] = step["index"] - 1
             # send a waiting status
             return DialogTurnStatus(DialogTurnStatus.Waiting)
         else:
