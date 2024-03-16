@@ -40,6 +40,7 @@ class BotConvoTrigger:
 @dataclass
 class BotMessageTemplate:
     text: Union[Callable[[Any, Any], str], List[str]] = None
+    type: str = None
     action: str = None
     execute: dict = None
     quick_replies: Union[Callable[[Any, Any], List[Any]], List[Any]] = None
