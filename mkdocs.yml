@@ -3,3 +3,7 @@ site_name: Botgen
 nav:
   - Home: index.md
   - Introduction: intro.md
+  - Conversation: conversation.md
+
+theme:
+  name: material
