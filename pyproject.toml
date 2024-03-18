@@ -11,6 +11,7 @@ botbuilder-core = "^4.14.8"
 aiohttp = "^3.9.3"
 botbuilder-dialogs = "^4.14.8"
 loguru = "^0.7.2"
+slack-sdk = "^3.27.1"
 
 
 [tool.poetry.group.dev.dependencies]
