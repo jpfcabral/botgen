@@ -217,12 +217,12 @@ class Bot:
 
         self._triggers[event].append(bot_trigger)
 
-    async def on(self, event: str, handler: Callable):
+    def on(self, event: str, handler: Callable):
 
         if not event in self._events:
             self._events[event] = []
 
-        self._events[event] = handler
+        self._events[event].append(handler)
 
     async def spawn(
         self, config: TurnContext | DialogContext = None, custom_adapter: BotAdapter = None
