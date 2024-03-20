@@ -9,11 +9,13 @@ from typing import List
 from typing import Union
 
 from botbuilder.core import MessageFactory
+from botbuilder.dialogs import ActivityPrompt
 from botbuilder.dialogs import Dialog
 from botbuilder.dialogs import DialogContext
 from botbuilder.dialogs import DialogReason
 from botbuilder.dialogs import DialogTurnResult
 from botbuilder.dialogs import DialogTurnStatus
+from botbuilder.dialogs import PromptValidatorContext
 from botbuilder.schema import ActionTypes
 from botbuilder.schema import Activity
 from botbuilder.schema import ActivityTypes
@@ -75,6 +77,15 @@ class BotConversation(Dialog):
         self._changeHooks: Dict = {}
         self.script: Dict[str, List] = {}
         self._controller = controller
+
+        activity_prompt = ActivityPrompt(self._prompt, self._prompt_validator)
+        self._controller.dialog_set.add(activity_prompt)
+
+    async def _prompt_validator(self, prompt: PromptValidatorContext):
+        """
+        Runs when a new activity is added
+        """
+        return prompt.recognized.succeeded == True
 
     def add_message(self, message: BotMessageTemplate | str, thread_name: str = None):
         """
@@ -196,7 +207,7 @@ class BotConversation(Dialog):
                 option["type"] = "string"
 
         self.script[thread_name].append(message)
-        self.script[thread_name].append({"action": "next"})
+        self.script[thread_name].append(BotMessageTemplate(action="next"))
         return self
 
     def ask(
