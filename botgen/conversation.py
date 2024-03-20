@@ -72,7 +72,7 @@ class BotConversation(Dialog):
         self._before_hooks: Dict = {}
         self._afterHooks: List = []
         self._changeHooks: Dict = {}
-        self.script: Dict[List] = {}
+        self.script: Dict[str, List] = {}
         self._controller = controller
 
     def add_message(self, message: BotMessageTemplate | str, thread_name: str = None):
@@ -395,10 +395,10 @@ class BotConversation(Dialog):
         """
         # Don't do anything for non-message activities
         if dc.context.activity.type != ActivityTypes.message:
-            return Dialog.EndOfTurn
+            return Dialog.end_of_turn
 
         # Run next step with the message text as the result.
-        return await self.resume_dialog(dc, DialogReason.continue_called, dc.context.activity)
+        return await self.resume_dialog(dc, DialogReason.ContinueCalled, dc.context.activity)
 
     async def on_step(self, dc: DialogContext, step: BotConversationStep) -> Any:
         """
