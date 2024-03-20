@@ -110,6 +110,7 @@ flower.*
 
 #Image Files
 *.png
+*.svg
 
 # End of https://www.toptal.com/developers/gitignore/api/python,django,data
 # Ignore dynaconf secret files
