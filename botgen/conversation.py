@@ -198,6 +198,29 @@ class BotConversation(Dialog):
         self.script[thread_name].append({"action": "next"})
         return self
 
+    def ask(
+        self,
+        message: Union[Dict[str, Any], str],
+        handlers: Union[Callable[..., Any], List[Dict[str, Any]]],
+        key: Union[Dict[str, str], str, None] = None,
+    ):
+        """
+        Add a question to the default thread.
+
+        In addition to a message template, receives either a single handler function to call when an answer is provided,
+        or an array of handlers paired with trigger patterns. When providing multiple conditions to test, developers may also provide a
+        handler marked as the default choice.
+
+        [Learn more about building conversations &rarr;](../conversations.md#build-a-conversation)
+
+        Args:
+            message (Union[Dict[str, Any], str]): A message that will be used as the prompt.
+            handlers (Union[Callable[..., Any], List[Dict[str, Any]]]): One or more handler functions defining possible conditional actions based on the response to the question.
+            key (Union[Dict[str, str], str, None], optional): Name of variable to store response in.
+        """
+        self.add_question(message, handlers, key, "default")
+        return self
+
     def add_child_dialog(self, dialog_id: str, key_name: str = None, thread_name: str = "default"):
         """
         Causes the dialog to call a child dialog, wait for it to complete,
