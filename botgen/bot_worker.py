@@ -20,7 +20,7 @@ class BotWorker:
         """Get a reference to the main Bot controller"""
         return self._controller
 
-    def get_config(self, key: str):
+    def get_config(self, key: str = None):
         """Get a value from the BotWorker's configuration"""
         if key:
             return self._config[key]
