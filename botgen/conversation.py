@@ -69,7 +69,7 @@ class BotConversation(Dialog):
     def __init__(self, dialog_id: str, controller):
         super().__init__(dialog_id=dialog_id)
 
-        self._prompt: str
+        self._prompt: str = self.id + "_default_prompt"
         self._before_hooks: Dict = {}
         self._afterHooks: List = []
         self._changeHooks: Dict = {}
