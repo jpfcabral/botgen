@@ -12,6 +12,7 @@ from botbuilder.core import MessageFactory
 from botbuilder.dialogs import Dialog
 from botbuilder.dialogs import DialogContext
 from botbuilder.dialogs import DialogReason
+from botbuilder.dialogs import DialogTurnResult
 from botbuilder.dialogs import DialogTurnStatus
 from botbuilder.schema import ActionTypes
 from botbuilder.schema import Activity
@@ -400,6 +401,43 @@ class BotConversation(Dialog):
         # Run next step with the message text as the result.
         return await self.resume_dialog(dc, DialogReason.ContinueCalled, dc.context.activity)
 
+    async def resume_dialog(
+        self, dc: DialogContext, reason: DialogReason, result: any
+    ) -> DialogTurnResult:
+        """
+        Called automatically when a dialog moves forward a step. Do not call this directly!
+
+        Parameters:
+            dc (DialogContext): The current DialogContext.
+            reason (DialogReason): Reason for resuming the dialog.
+            result (any): Result of the previous step.
+
+        Returns:
+            DialogTurnResult: Result of the dialog turn.
+        """
+        # Increment step index and run step
+        if dc.active_dialog:
+            state = dc.active_dialog.state
+            return await self.run_step(
+                dc, state["step_index"] + 1, state.get("thread", "default"), reason, result
+            )
+        else:
+            return Dialog.end_of_turn
+
+    async def run_after(self, context: DialogContext, results: any) -> None:
+        """
+        This private method is called at the end of the conversation, and causes any bound handler functions to be executed.
+
+        Parameters:
+            context (DialogContext): The current dialog context.
+            results (any): An object containing the final results of the dialog.
+        """
+        logger.debug(f"After: {self.id}")
+        if self._afterHooks:
+            bot = await self._controller.spawn(context)
+            for handler in self._afterHooks:
+                await handler(results, bot)
+
     async def on_step(self, dc: DialogContext, step: BotConversationStep) -> Any:
         """
         Called automatically to process the turn, interpret the script, and take any necessary actions based on that script. Do not call this directly
@@ -592,7 +630,7 @@ class BotConversation(Dialog):
         # shallow copy todo: may need deep copy
         # protect against canceled dialog.
         if dc.active_dialog and dc.active_dialog.state:
-            result = {**dc.active_dialog.state.values}
+            result = {**dc.active_dialog.state["values"]}
             await dc.end_dialog(result)
             await self.run_after(dc, result)
         else:
