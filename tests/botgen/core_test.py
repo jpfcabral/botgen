@@ -326,7 +326,6 @@ def test_on_adds_event_handler(bot):
 
     # Call the on method
     bot.on(event, handler)
-    print(bot._events)
     # Assert that the event handler is added to the list of events
     assert len(bot._events[event]) == 1
     assert bot._events[event][0] == handler
