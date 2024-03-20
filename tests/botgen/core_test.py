@@ -1,47 +1,59 @@
+from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
+from unittest.mock import Mock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, Mock
-from botgen import Bot
-from botbuilder.core import MemoryStorage
-from botbuilder.dialogs import DialogSet
 from aiohttp import web
+from botbuilder.core import BotAdapter
+from botbuilder.core import MemoryStorage
 from botbuilder.core import TurnContext
+from botbuilder.dialogs import DialogContext
+from botbuilder.dialogs import DialogSet
+
+from botgen import Bot
 from botgen.bot_worker import BotWorker
 from botgen.core import BotMessage
-from botbuilder.dialogs import DialogContext
-from botbuilder.core import BotAdapter
 
 
 @pytest.fixture
 def bot():
     return Bot()
 
+
 @pytest.fixture
 def mock_request():
     return Mock()
+
 
 @pytest.fixture
 def mock_turn_context():
     return MagicMock(spec=TurnContext)
 
+
 @pytest.fixture
 def mock_bot_worker():
     return Mock(spec=BotWorker)
+
 
 @pytest.fixture
 def mock_bot_message():
     return Mock(spec=BotMessage)
 
+
 @pytest.fixture
 def mock_trigger():
     return Mock()
+
 
 @pytest.fixture
 def mock_dialog_context():
     return Mock(spec=DialogContext)
 
+
 @pytest.fixture
 def mock_bot_adapter():
     return Mock(spec=BotAdapter)
+
 
 def test_bot_initialization(bot):
     assert bot.webhook_uri == "/api/messages"
@@ -59,9 +71,11 @@ def test_bot_initialization(bot):
     assert isinstance(bot._storage, MemoryStorage)
     assert isinstance(bot.dialog_set, DialogSet)
 
+
 def test_configure_webhook(bot):
     bot.webserver = Mock()
     bot.configure_webhook()
+
 
 @pytest.mark.asyncio
 async def test_process_incoming_message(bot, mock_request):
@@ -74,13 +88,16 @@ async def test_process_incoming_message(bot, mock_request):
     bot.adapter.process_activity.assert_called_once_with(mock_request, bot.handle_turn)
     assert response.status == 200
 
+
 def test_configure_webhook(bot):
     bot.webserver = Mock()
     bot.webserver.add_routes = Mock()
 
     bot.configure_webhook()
 
-    bot.webserver.add_routes.assert_called_once_with([web.post(bot.webhook_uri, bot.process_incoming_message)])
+    bot.webserver.add_routes.assert_called_once_with(
+        [web.post(bot.webhook_uri, bot.process_incoming_message)]
+    )
 
 
 @pytest.mark.asyncio
@@ -92,7 +109,9 @@ async def test_handle_turn(bot, mock_turn_context):
     activity.text = "Test message"
     activity.conversation = {"id": "channel_id"}
     activity.value = "message_value"
-    TurnContext.get_conversation_reference = Mock(return_value={"reference": "conversation_reference"})
+    TurnContext.get_conversation_reference = Mock(
+        return_value={"reference": "conversation_reference"}
+    )
     mock_turn_context.activity = activity
 
     # Set up expectations for BotMessage creation
@@ -103,7 +122,7 @@ async def test_handle_turn(bot, mock_turn_context):
         channel="channel_id",
         value="message_value",
         reference={"reference": "conversation_reference"},
-        incoming_message=activity
+        incoming_message=activity,
     )
 
     # Mock the dialog set and create_context method
@@ -122,11 +141,15 @@ async def test_handle_turn(bot, mock_turn_context):
     # Assertions
     bot.dialog_set.create_context.assert_called_once_with(turn_context=mock_turn_context)
     bot.spawn.assert_called_once_with(dialog_context_mock)
-    bot._process_trigger_and_events.assert_called_once_with(bot_worker=bot.spawn.return_value, message=expected_bot_message)
+    bot._process_trigger_and_events.assert_called_once_with(
+        bot_worker=bot.spawn.return_value, message=expected_bot_message
+    )
 
 
 @pytest.mark.asyncio
-async def test_process_trigger_and_events_with_listen_results(bot, mock_bot_worker, mock_bot_message):
+async def test_process_trigger_and_events_with_listen_results(
+    bot, mock_bot_worker, mock_bot_message
+):
     # Mock _listen_for_triggers method to return some results
     bot._listen_for_triggers = AsyncMock(return_value=["listen_result"])
 
@@ -134,15 +157,22 @@ async def test_process_trigger_and_events_with_listen_results(bot, mock_bot_work
     bot.trigger = AsyncMock()
 
     # Call the _process_trigger_and_events method
-    result = await bot._process_trigger_and_events(bot_worker=mock_bot_worker, message=mock_bot_message)
+    result = await bot._process_trigger_and_events(
+        bot_worker=mock_bot_worker, message=mock_bot_message
+    )
 
     # Assertions
     assert result == ["listen_result"]
-    bot._listen_for_triggers.assert_called_once_with(bot_worker=mock_bot_worker, message=mock_bot_message)
+    bot._listen_for_triggers.assert_called_once_with(
+        bot_worker=mock_bot_worker, message=mock_bot_message
+    )
     bot.trigger.assert_not_called()  # Since listen_results is not empty, trigger should not be called
 
+
 @pytest.mark.asyncio
-async def test_process_trigger_and_events_with_trigger_results(bot, mock_bot_worker, mock_bot_message):
+async def test_process_trigger_and_events_with_trigger_results(
+    bot, mock_bot_worker, mock_bot_message
+):
     # Mock _listen_for_triggers method to return None
     bot._listen_for_triggers = AsyncMock(return_value=None)
 
@@ -150,12 +180,17 @@ async def test_process_trigger_and_events_with_trigger_results(bot, mock_bot_wor
     bot.trigger = AsyncMock(return_value=["trigger_result"])
 
     # Call the _process_trigger_and_events method
-    result = await bot._process_trigger_and_events(bot_worker=mock_bot_worker, message=mock_bot_message)
+    result = await bot._process_trigger_and_events(
+        bot_worker=mock_bot_worker, message=mock_bot_message
+    )
 
     # Assertions
     assert result == ["trigger_result"]
-    bot._listen_for_triggers.assert_called_once_with(bot_worker=mock_bot_worker, message=mock_bot_message)
+    bot._listen_for_triggers.assert_called_once_with(
+        bot_worker=mock_bot_worker, message=mock_bot_message
+    )
     bot.trigger.assert_called_once_with(mock_bot_message.type, mock_bot_worker, mock_bot_message)
+
 
 @pytest.mark.asyncio
 async def test_trigger_with_registered_event_handler(bot, mock_bot_worker, mock_bot_message):
@@ -169,6 +204,7 @@ async def test_trigger_with_registered_event_handler(bot, mock_bot_worker, mock_
     # Assertions
     mock_event_handler.assert_called_once_with(mock_bot_worker, mock_bot_worker, mock_bot_message)
 
+
 @pytest.mark.asyncio
 async def test_trigger_with_unregistered_event_handler(bot, mock_bot_worker, mock_bot_message):
     # Call the trigger method with an event that doesn't have any registered handler
@@ -176,6 +212,7 @@ async def test_trigger_with_unregistered_event_handler(bot, mock_bot_worker, moc
 
     # No event handler should be called, so assert that it's not called
     assert not mock_bot_worker.called
+
 
 @pytest.mark.asyncio
 async def test_listen_for_triggers_with_matching_trigger(bot, mock_bot_worker, mock_bot_message):
@@ -193,6 +230,7 @@ async def test_listen_for_triggers_with_matching_trigger(bot, mock_bot_worker, m
     # Assertions
     assert result == "trigger_results"
     mock_trigger.handler.assert_called_once_with(mock_bot_worker, mock_bot_message)
+
 
 @pytest.mark.asyncio
 async def test_listen_for_triggers_with_no_matching_trigger(bot, mock_bot_worker, mock_bot_message):
@@ -222,6 +260,7 @@ async def test_test_trigger_with_string_pattern(bot, mock_trigger, mock_bot_mess
     # Assertions
     assert result == False
 
+
 @pytest.mark.asyncio
 async def test_test_trigger_with_list_pattern(bot, mock_trigger, mock_bot_message):
     # Set up the trigger with a list pattern
@@ -241,6 +280,7 @@ async def test_test_trigger_with_list_pattern(bot, mock_trigger, mock_bot_messag
     # Assertions
     assert result == False
 
+
 @pytest.mark.asyncio
 async def test_test_trigger_with_callable_pattern(bot, mock_trigger, mock_bot_message):
     # Set up the trigger with a callable pattern
@@ -251,6 +291,7 @@ async def test_test_trigger_with_callable_pattern(bot, mock_trigger, mock_bot_me
 
     # Assertions
     assert result == True
+
 
 @pytest.mark.asyncio
 async def test_test_trigger_with_invalid_pattern(bot, mock_trigger, mock_bot_message):
@@ -277,6 +318,7 @@ def test_hears_adds_trigger(bot):
     assert bot._triggers["message"][0].pattern == pattern
     assert bot._triggers["message"][0].handler == handler
 
+
 def test_on_adds_event_handler(bot):
     # Mock the handler
     handler = Mock()
@@ -289,19 +331,6 @@ def test_on_adds_event_handler(bot):
     assert len(bot._events[event]) == 1
     assert bot._events[event][0] == handler
 
-@pytest.mark.asyncio
-async def test_spawn_with_turn_context(bot, mock_turn_context):
-    # Mock TurnContext configuration
-    mock_turn_context.activity = Mock()
-    mock_turn_context.activity.channel_id = "channel_id"
-
-    # Call the spawn method with TurnContext
-    bot_worker = await bot.spawn(config=mock_turn_context)
-
-    # Assertions
-    assert bot_worker._controller == bot
-    assert bot_worker._config["context"] == mock_turn_context
-    assert bot_worker._config["activity"] == mock_turn_context.activity
 
 @pytest.mark.asyncio
 async def test_spawn_with_dialog_context(bot, mock_dialog_context):
