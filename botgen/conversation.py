@@ -483,7 +483,7 @@ class BotConversation(Dialog):
                 # did we just change threads? if so, restart this turn
                 if index != step["index"] or thread_name != step["thread"]:
                     return await self.run_step(
-                        dc, step["index"], step["thread"], DialogReason.next_called
+                        dc, step["index"], step["thread"], DialogReason.NextCalled
                     )
 
             # handle conditions of previous step
@@ -802,7 +802,7 @@ class BotConversation(Dialog):
         step["index"] = 0
 
         return await self.run_step(
-            dc, step["index"], step["thread"], DialogReason.nextCalled, step["values"]
+            dc, step["index"], step["thread"], DialogReason.NextCalled, step["values"]
         )
 
     async def handle_action(self, path: dict, dc: DialogContext, step: BotConversationStep) -> Any:
@@ -850,7 +850,7 @@ class BotConversation(Dialog):
             # did we just change threads? if so, restart this turn
             if index != step["index"] or thread_name != step["thread"]:
                 return await self.run_step(
-                    dc, step["index"], step["thread"], DialogReason.next_called, None
+                    dc, step["index"], step["thread"], DialogReason.NextCalled, None
                 )
 
             return False
