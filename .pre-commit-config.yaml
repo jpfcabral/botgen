@@ -16,6 +16,12 @@ repos:
           - id: debug-statements
             language_version: python3
 
+    - repo: https://github.com/PyCQA/autoflake
+      rev: v2.2.1
+      hooks:
+      -   id: autoflake
+          args: [--remove-all-unused-imports, --in-place, --ignore-init-module-imports]
+
     - repo: https://github.com/asottile/reorder_python_imports
       rev: v2.6.0
       hooks:

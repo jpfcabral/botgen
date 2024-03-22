@@ -17,15 +17,18 @@ class BotWorker:
         self._config = config
 
     def get_controller(self):
-        """ Get a reference to the main Bot controller """
+        """Get a reference to the main Bot controller"""
         return self._controller
 
-    def get_config(self):
-        """ Get a value from the BotWorker's configuration  """
+    def get_config(self, key: str = None):
+        """Get a value from the BotWorker's configuration"""
+        if key:
+            return self._config[key]
+
         return self._config
 
     async def say(self, message: botgen.BotMessage | Activity | str):
-        """ Send a message using whatever context the `bot` was spawned """
+        """Send a message using whatever context the `bot` was spawned"""
         activity = await self.ensure_message_format(message=message)
 
         return await self._config["context"].send_activity(activity)
@@ -45,7 +48,7 @@ class BotWorker:
         return await self.say(activity)
 
     async def ensure_message_format(self, message: botgen.BotMessage | str) -> Activity:
-        """ 
+        """
         Take a crudely-formed Bot message with any sort of field (may just be a string, may be a partial message object)
         and map it into a beautiful BotFramework Activity
         """
@@ -53,3 +56,32 @@ class BotWorker:
             return Activity(type="message", text=message, channel_data={})
 
         return Activity(**message.__dict__)
+
+    async def begin_dialog(self, id: str, options: dict = {}) -> None:
+        """
+        Begin a pre-defined dialog by specifying its ID. The dialog will be started in the same context
+        (same user, same channel) in which the original incoming message was received.
+
+        Args:
+            id (str): The ID of the dialog.
+            options (Any, optional): An object containing options to be passed into the dialog. Defaults to None.
+
+        Returns:
+            None
+        """
+
+        if not "dialog_context" in self._config:
+            raise Exception(
+                "Call to begin_dialog on a bot that did not receive a dialog_context during spawn"
+            )
+
+        await self._config["dialog_context"].begin_dialog(
+            f"{id}:botgen-wrapper",
+            {
+                "user": self._config["context"].activity.id,
+                "channel": self._config["context"].activity.conversation["id"],
+                **options,
+            },
+        )
+
+        await self._controller.save_state(self)

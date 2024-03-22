@@ -1,11 +1,15 @@
-import pytest
-from botgen.conversation_state import BotConversationState
-from botbuilder.core import MemoryStorage
 from unittest.mock import Mock
+
+import pytest
+from botbuilder.core import MemoryStorage
+
+from botgen.conversation_state import BotConvoState
+
 
 @pytest.fixture
 def conversation_state():
-    return BotConversationState(MemoryStorage())
+    return BotConvoState(MemoryStorage())
+
 
 def test_get_storage_key(conversation_state):
     # Mocking the necessary attributes of TurnContext
@@ -19,6 +23,7 @@ def test_get_storage_key(conversation_state):
     actual_key = conversation_state.get_storage_key(turn_context_mock)
     assert actual_key == expected_key
 
+
 def test_get_storage_key_missing_conversation(conversation_state):
     # Mocking the necessary attributes of TurnContext
     activity_mock = Mock()
@@ -29,6 +34,7 @@ def test_get_storage_key_missing_conversation(conversation_state):
 
     with pytest.raises(Exception):
         conversation_state.get_storage_key(turn_context_mock)
+
 
 def test_get_storage_key_missing_conversation_id(conversation_state):
     # Mocking the necessary attributes of TurnContext

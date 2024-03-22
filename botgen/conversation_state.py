@@ -1,9 +1,8 @@
 from botbuilder.core import ConversationState
 from botbuilder.core import TurnContext
-from botbuilder.schema import Activity
 
 
-class BotConversationState(ConversationState):
+class BotConvoState(ConversationState):
     def get_storage_key(self, turn_context: TurnContext) -> str:
         """
         A customized version of [ConversationState](https://docs.microsoft.com/en-us/javascript/api/botbuilder-core/conversationstate?view=botbuilder-ts-latest) that  overide the [getStorageKey](#getStorageKey) method to create a more complex key value.
