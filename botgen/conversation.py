@@ -541,7 +541,7 @@ class BotConversation(Dialog):
                 except Exception as err:
                     print(err)
                     await dc.context.send_activity(f"Failed to start prompt {self._prompt}")
-                    return await step["next"]()
+                    return await step["next"](None)
             else:
                 # if there is text, attachments, or any channel data fields at all...
                 if (
