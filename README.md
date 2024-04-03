@@ -36,6 +36,7 @@ adapter = WebAdapter()
 bot = Bot(adapter=adapter)
 
 async def hello(bot_worker: BotWorker, message: BotMessage):
+    # Put your "intelligence" here, like LLMs, Decision Trees, etc
     await bot_worker.say("hello from bot")
 
 
@@ -59,3 +60,5 @@ curl -L -X POST 'http://localhost:8080/api/messages' -H 'Content-Type: applicati
 ```
 
 ### How to contribute
+
+Feel free to suggest features, help or report bugs by creating issues.
