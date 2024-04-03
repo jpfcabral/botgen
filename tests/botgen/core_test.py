@@ -202,7 +202,7 @@ async def test_trigger_with_registered_event_handler(bot, mock_bot_worker, mock_
     await bot.trigger("some_event", mock_bot_worker, mock_bot_message)
 
     # Assertions
-    mock_event_handler.assert_called_once_with(mock_bot_worker, mock_bot_worker, mock_bot_message)
+    mock_event_handler.assert_called_once_with(mock_bot_worker, mock_bot_message)
 
 
 @pytest.mark.asyncio

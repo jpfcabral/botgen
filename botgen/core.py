@@ -159,7 +159,7 @@ class Bot:
         """ """
         if event in self._events:
             for ev in self._events[event]:
-                handler_result = await ev(bot_worker, bot_worker, message)
+                handler_result = await ev(bot_worker, message)
 
                 if handler_result:
                     break
