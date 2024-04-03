@@ -15,6 +15,7 @@ from botbuilder.dialogs import DialogContext
 from botbuilder.dialogs import DialogReason
 from botbuilder.dialogs import DialogTurnResult
 from botbuilder.dialogs import DialogTurnStatus
+from botbuilder.dialogs import PromptOptions
 from botbuilder.dialogs import PromptValidatorContext
 from botbuilder.schema import ActionTypes
 from botbuilder.schema import Activity
@@ -536,7 +537,8 @@ class BotConversation(Dialog):
             if line.collect and line.action != "begin_dialog":
                 try:
                     return await dc.prompt(
-                        self._prompt, await self.make_outgoing(dc, line, step["values"])
+                        self._prompt,
+                        PromptOptions(prompt=await self.make_outgoing(dc, line, step["values"])),
                     )
                 except Exception as err:
                     print(err)
