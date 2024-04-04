@@ -1,6 +1,8 @@
 from abc import ABC
 from dataclasses import dataclass
+from typing import Any
 from typing import Callable
+from typing import Dict
 from typing import Optional
 
 from aiohttp import web
@@ -53,6 +55,33 @@ class Middleware:
     interpret: Callable
 
 
+class BotPlugin:
+    """
+    A plugin for Bot that can be loaded into the core bot object.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        middlewares: Optional[Dict[str, Any]] = None,
+        init: Optional[Callable] = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Create a new BotPlugin instance.
+
+        Args:
+            name (str): The name of the plugin.
+            middlewares (dict): A dictionary of middleware functions that can be used to extend the bot's functionality.
+            init (Callable): A function that will be called when the plugin is loaded.
+            **kwargs: Additional arguments that can be used to configure the plugin.
+        """
+        self.name = name
+        self.middlewares = middlewares
+        self.init = init
+        self.__annotations__ = kwargs
+
+
 class Bot:
     version: str
     middleware = Middleware
@@ -99,6 +128,7 @@ class Bot:
         self._boot_complete_handlers: list[Callable] = []
 
         self.booted = False
+        self.add_dep("booted")
 
         self._storage = MemoryStorage()
 
@@ -113,6 +143,14 @@ class Bot:
         if self.webserver:
             self.configure_webhook()
 
+        self.plugin_list = []
+        self._plugins = {}
+
+        if self.adapter:
+            self.use_plugin(self.adapter)
+
+        self.complete_dep("booted")
+
     async def process_incoming_message(self, request: web.Request):
         """ """
         body = await self.adapter.process_activity(request, self.handle_turn)
@@ -121,7 +159,9 @@ class Bot:
 
     def configure_webhook(self):
         """ """
+        self.add_dep("webadapter")
         self.webserver.add_routes([web.post(self.webhook_uri, self.process_incoming_message)])
+        self.complete_dep("webadapter")
 
     async def handle_turn(self, turn_context: TurnContext):
         """ """
@@ -192,7 +232,7 @@ class Bot:
 
         return False
 
-    async def ready(self, handler: Callable) -> None:
+    def ready(self, handler: Callable) -> None:
         """ """
 
         if self.booted:
@@ -242,3 +282,85 @@ class Bot:
 
     def start(self):
         web.run_app(self.webserver)
+
+    def add_dep(self, name: str) -> None:
+        """
+        Add a dependency to Bot's bootup process that must be marked as completed using complete_dep().
+
+        Parameters:
+            name (str): The name of the dependency that is being loaded.
+        """
+        logger.debug(f"Waiting for {name}")
+        self._dependencies[name] = False
+
+    def complete_dep(self, name: str) -> bool:
+        """
+        Mark a bootup dependency as loaded and ready to use.
+
+        Parameters:
+            name (str): The name of the dependency that has completed loading.
+
+        Returns:
+            bool: True if all dependencies have been marked complete, otherwise False.
+        """
+        logger.debug(f"{name} ready")
+
+        self._dependencies[name] = True
+
+        if all(self._dependencies.values()):
+            # Everything is done!
+            self._signal_boot_complete()
+            return True
+        else:
+            return False
+
+    def _signal_boot_complete(self) -> None:
+        """
+        This function gets called when all of the bootup dependencies are completely loaded.
+        """
+        self.booted = True
+        for handler in self._boot_complete_handlers:
+            handler()
+
+    def use_plugin(self, plugin_or_function: Callable | BotPlugin) -> None:
+        """
+        Load a plugin module and bind all included middlewares to their respective endpoints.
+
+        Parameters:
+            plugin_or_function (Callable or BotPlugin): A plugin module in the form of a function(bot) {...}
+                that returns {name, middlewares, init} or an object in the same form.
+        """
+        if callable(plugin_or_function):
+            plugin = plugin_or_function(self)
+        else:
+            plugin = plugin_or_function
+
+        if plugin.name:
+            try:
+                self._register_plugin(plugin.name, plugin)
+            except Exception as err:
+                logger.warning(f"ERROR IN PLUGIN REGISTER: {err}")
+
+    def _register_plugin(self, name: str, endpoints: BotPlugin) -> None:
+        """
+        Called from usePlugin to do the actual binding of middlewares for a plugin that is being loaded.
+
+        Parameters:
+            name (str): Name of the plugin.
+            endpoints (BotPlugin): The plugin object that contains middleware endpoint definitions.
+        """
+
+        if name in self.plugin_list:
+            logger.debug("Plugin already enabled:", name)
+            return
+
+        self.plugin_list.append(name)
+
+        if endpoints.init:
+            try:
+                endpoints.init(self)
+            except Exception as err:
+                if err:
+                    raise err
+
+        logger.debug("Plugin Enabled:", name)
