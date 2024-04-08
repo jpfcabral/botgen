@@ -461,7 +461,7 @@ class BotConversation(Dialog):
             raise ValueError(f"Thread '{step.thread}' not found, did you add any messages to it?")
 
         # Capture the previous step value if there previous line included a prompt
-        previous = thread[step.index - 1] if step.index >= 1 else None
+        previous: BotMessageTemplate = thread[step.index - 1] if step.index >= 1 else None
         if step.result and previous and previous.collect:
             if previous.collect.key:
                 # capture before values
@@ -526,7 +526,7 @@ class BotConversation(Dialog):
 
         # Handle the current step
         if step.index < len(thread):
-            line = thread[step.index]
+            line: BotMessageTemplate = thread[step.index]
 
             # If a prompt is defined in the script, use dc.prompt to call it.
             # This prompt must be a valid dialog defined somewhere in your code!
