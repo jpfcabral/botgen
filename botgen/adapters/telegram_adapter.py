@@ -25,4 +25,10 @@ class TelegramAdapter(BotAdapter):
     def send_activities(
         self, context: TurnContext, activities: List[Activity]
     ) -> Coroutine[Any, Any, List[ResourceResponse]]:
-        """"""
+        """ Standard BotBuilder adapter method to send a message from the bot to the messaging API """
+
+    async def process_activity(self, request: Request, logic: callable):
+        """ Process incoming messages from aiottp endpoint """
+
+    def _request_to_bot_message(self, body: dict) -> BotMessage:
+        """ Converts incoming request to bot-like message """
